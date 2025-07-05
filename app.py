@@ -17,6 +17,8 @@ import shutil
 from flask import send_from_directory
 from apscheduler.jobstores.base import JobLookupError # Tambahkan import ini
 import time
+import paramiko
+import scp
 
 # Konfigurasi logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -42,6 +44,7 @@ socketio = SocketIO(app, async_mode='eventlet')
 socketio_lock = Lock()
 app.permanent_session_lifetime = timedelta(hours=12)
 jakarta_tz = timezone('Asia/Jakarta')
+migration_in_progress = False
 
 # ==================== SISTEM DOMAIN YANG DIPERBAIKI ====================
 
@@ -2596,6 +2599,11 @@ def admin_index():
         logging.error(f"Error rendering admin index: {e}", exc_info=True)
         return "Internal Server Error", 500
 
+@app.route('/admin/migration')
+@admin_required
+def admin_migration():
+    return render_template('admin_migration.html')
+
 @app.route('/admin/users')
 @admin_required
 def admin_users():
@@ -2708,6 +2716,214 @@ def stop_session_admin_api(session_id):
     except Exception as e:
         logging.error(f"Error stopping session {session_id}: {e}", exc_info=True)
         return jsonify({'success': False, 'message': 'Server error'}), 500
+
+# Migration API Routes
+@app.route('/api/migration/test-connection', methods=['POST'])
+@admin_required
+def test_migration_connection():
+    data = request.get_json()
+    ip = data.get('ip')
+    username = data.get('username')
+    password = data.get('password')
+    
+    try:
+        # Test SSH connection
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(ip, port=22, username=username, password=password, timeout=10)
+        
+        # Test if StreamHibV2 directory exists
+        stdin, stdout, stderr = ssh.exec_command('ls -la /root/StreamHibV2/')
+        exit_status = stdout.channel.recv_exit_status()
+        
+        ssh.close()
+        
+        if exit_status == 0:
+            return jsonify({'success': True, 'message': 'Connection successful and StreamHibV2 directory found'})
+        else:
+            return jsonify({'success': False, 'message': 'StreamHibV2 directory not found on old server'})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Connection failed: {str(e)}'})
+
+@app.route('/api/migration/start', methods=['POST'])
+@admin_required
+def start_migration():
+    global migration_in_progress, recovery_enabled
+    
+    if migration_in_progress:
+        return jsonify({'success': False, 'message': 'Migration already in progress'})
+    
+    data = request.get_json()
+    ip = data.get('ip')
+    username = data.get('username')
+    password = data.get('password')
+    
+    # Disable auto-recovery during migration
+    recovery_enabled = False
+    migration_in_progress = True
+    
+    # Start migration in background thread
+    migration_thread = threading.Thread(
+        target=perform_migration,
+        args=(ip, username, password)
+    )
+    migration_thread.daemon = True
+    migration_thread.start()
+    
+    return jsonify({'success': True, 'message': 'Migration started'})
+
+@app.route('/api/migration/recovery', methods=['POST'])
+@admin_required
+def migration_recovery():
+    global recovery_enabled, migration_in_progress
+    
+    try:
+        # Re-enable auto-recovery
+        recovery_enabled = True
+        migration_in_progress = False
+        
+        # Perform recovery
+        perform_startup_recovery()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Recovery completed successfully'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/migration/rollback', methods=['POST'])
+@admin_required
+def migration_rollback():
+    global recovery_enabled, migration_in_progress
+    
+    try:
+        # Restore backup files if they exist
+        backup_files = [
+            ('sessions.json.backup', 'sessions.json'),
+            ('users.json.backup', 'users.json'),
+            ('domain_config.json.backup', 'domain_config.json')
+        ]
+        
+        for backup_file, original_file in backup_files:
+            if os.path.exists(backup_file):
+                shutil.copy2(backup_file, original_file)
+                os.remove(backup_file)
+        
+        # Remove downloaded videos (keep only original ones)
+        # This is a simplified rollback - in production you might want more sophisticated backup
+        
+        # Re-enable auto-recovery
+        recovery_enabled = True
+        migration_in_progress = False
+        
+        return jsonify({'success': True, 'message': 'Rollback completed'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+def perform_migration(ip, username, password):
+    """Perform the actual migration process"""
+    try:
+        # Emit progress updates
+        socketio.emit('migration_log', {'message': 'Starting migration process...', 'type': 'info'})
+        socketio.emit('migration_progress', {'step': 'connection', 'progress': 10, 'message': 'Connecting to old server...'})
+        
+        # Create backup of current files
+        backup_current_files()
+        
+        # Connect to old server
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(ip, port=22, username=username, password=password, timeout=30)
+        
+        socketio.emit('migration_log', {'message': 'Connected to old server successfully', 'type': 'success'})
+        socketio.emit('migration_progress', {'step': 'download', 'progress': 30, 'message': 'Downloading files...'})
+        
+        # Download files using SCP
+        with scp.SCPClient(ssh.get_transport()) as scp_client:
+            # Download sessions.json
+            socketio.emit('migration_log', {'message': 'Downloading sessions.json...', 'type': 'info'})
+            try:
+                scp_client.get('/root/StreamHibV2/sessions.json', 'sessions.json')
+                socketio.emit('migration_log', {'message': 'sessions.json downloaded successfully', 'type': 'success'})
+            except Exception as e:
+                socketio.emit('migration_log', {'message': f'Warning: Could not download sessions.json: {str(e)}', 'type': 'warning'})
+            
+            socketio.emit('migration_progress', {'step': 'download', 'progress': 40, 'message': 'Downloading user data...'})
+            
+            # Download users.json
+            socketio.emit('migration_log', {'message': 'Downloading users.json...', 'type': 'info'})
+            try:
+                scp_client.get('/root/StreamHibV2/users.json', 'users.json')
+                socketio.emit('migration_log', {'message': 'users.json downloaded successfully', 'type': 'success'})
+            except Exception as e:
+                socketio.emit('migration_log', {'message': f'Warning: Could not download users.json: {str(e)}', 'type': 'warning'})
+            
+            socketio.emit('migration_progress', {'step': 'download', 'progress': 50, 'message': 'Downloading domain config...'})
+            
+            # Download domain_config.json
+            socketio.emit('migration_log', {'message': 'Downloading domain_config.json...', 'type': 'info'})
+            try:
+                scp_client.get('/root/StreamHibV2/domain_config.json', 'domain_config.json')
+                socketio.emit('migration_log', {'message': 'domain_config.json downloaded successfully', 'type': 'success'})
+            except Exception as e:
+                socketio.emit('migration_log', {'message': f'Warning: Could not download domain_config.json: {str(e)}', 'type': 'warning'})
+            
+            socketio.emit('migration_progress', {'step': 'download', 'progress': 60, 'message': 'Downloading videos...'})
+            
+            # Download videos directory
+            socketio.emit('migration_log', {'message': 'Downloading videos directory...', 'type': 'info'})
+            try:
+                # Create videos directory if it doesn't exist
+                os.makedirs('videos', exist_ok=True)
+                
+                # Get list of video files
+                stdin, stdout, stderr = ssh.exec_command('find /root/StreamHibV2/videos -type f -name "*.mp4" -o -name "*.avi" -o -name "*.mkv" -o -name "*.mov"')
+                video_files = stdout.read().decode().strip().split('\n')
+                
+                if video_files and video_files[0]:  # Check if there are any video files
+                    total_videos = len(video_files)
+                    for i, video_file in enumerate(video_files):
+                        if video_file.strip():  # Skip empty lines
+                            video_name = os.path.basename(video_file)
+                            socketio.emit('migration_log', {'message': f'Downloading {video_name}... ({i+1}/{total_videos})', 'type': 'info'})
+                            scp_client.get(video_file, f'videos/{video_name}')
+                            
+                            # Update progress
+                            video_progress = 60 + (30 * (i + 1) / total_videos)
+                            socketio.emit('migration_progress', {'step': 'download', 'progress': int(video_progress), 'message': f'Downloading videos... ({i+1}/{total_videos})'})
+                    
+                    socketio.emit('migration_log', {'message': f'All {total_videos} videos downloaded successfully', 'type': 'success'})
+                else:
+                    socketio.emit('migration_log', {'message': 'No video files found on old server', 'type': 'warning'})
+                    
+            except Exception as e:
+                socketio.emit('migration_log', {'message': f'Warning: Could not download videos: {str(e)}', 'type': 'warning'})
+        
+        ssh.close()
+        
+        socketio.emit('migration_progress', {'step': 'download', 'progress': 90, 'message': 'Download completed'})
+        socketio.emit('migration_log', {'message': 'All files downloaded successfully', 'type': 'success'})
+        
+        socketio.emit('migration_progress', {'step': 'recovery', 'progress': 100, 'message': 'Migration completed! Ready for manual recovery.'})
+        socketio.emit('migration_complete', {'message': 'Migration completed successfully'})
+        
+    except Exception as e:
+        global migration_in_progress, recovery_enabled
+        migration_in_progress = False
+        recovery_enabled = True
+        
+        socketio.emit('migration_log', {'message': f'Migration failed: {str(e)}', 'type': 'error'})
+        socketio.emit('migration_error', {'message': str(e)})
+
+def backup_current_files():
+    """Create backup of current files before migration"""
+    files_to_backup = ['sessions.json', 'users.json', 'domain_config.json']
+    
+    for file_name in files_to_backup:
+        if os.path.exists(file_name):
+            shutil.copy2(file_name, f'{file_name}.backup')
 
 # ==================== AKHIR ADMIN PANEL ====================
         
