@@ -95,7 +95,7 @@ check_command "Buat virtual environment"
 # 6. Aktivasi venv dan install dependensi Python
 print_status "Menginstall dependensi Python..."
 source /root/StreamHibV2/venv/bin/activate
-pip install flask flask-socketio flask-cors filelock apscheduler pytz gunicorn eventlet
+pip install flask flask-socketio flask-cors filelock apscheduler pytz gunicorn eventlet paramiko scp
 check_command "Install dependensi Python"
 
 # 7. Buat direktori yang diperlukan

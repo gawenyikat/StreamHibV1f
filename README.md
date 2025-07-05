@@ -14,6 +14,7 @@
 * Autostart service via `systemd`
 * Transfer dan backup video dari server lama
 * **🔄 Sistem Migrasi Seamless** - Recovery otomatis sesi dan jadwal
+* **🚀 Migration Wizard** - Transfer data dari server lama dengan 1 klik
 * **🌐 Sistem Domain Terintegrasi** - Support domain custom dengan SSL
 
 ---
@@ -127,7 +128,7 @@ source /root/StreamHibV2/venv/bin/activate
 ### 5. Install Dependensi Python
 
 ```bash
-pip install flask flask-socketio flask-cors filelock apscheduler pytz gunicorn eventlet
+pip install flask flask-socketio flask-cors filelock apscheduler pytz gunicorn eventlet paramiko scp
 
 ```
 
@@ -255,18 +256,19 @@ Saat migrasi server, Anda hanya perlu mengubah A record domain, customer tidak p
 
 ## 🔄 Migrasi Server Seamless
 
-StreamHibV2 dilengkapi dengan sistem recovery otomatis yang memungkinkan migrasi server tanpa downtime yang signifikan.
+StreamHibV2 dilengkapi dengan **Migration Wizard** dan sistem recovery otomatis yang memungkinkan migrasi server tanpa downtime yang signifikan.
 
 ### Cara Kerja Migrasi:
 
 1. **Server A** (lama) tetap berjalan selama proses migrasi
 2. **Server B** (baru) disetup dengan data yang sama
-3. Sistem recovery otomatis mendeteksi dan memulihkan:
+3. **Migration Wizard** otomatis transfer data via SSH
+4. Sistem recovery otomatis mendeteksi dan memulihkan:
    - Sesi streaming yang terputus
    - Jadwal yang hilang
    - Service systemd yang tidak aktif
 
-### Langkah Migrasi:
+### Langkah Migrasi (Otomatis dengan Migration Wizard):
 
 #### 1. Setup Server Baru (Server B)
 ```bash
@@ -274,25 +276,23 @@ StreamHibV2 dilengkapi dengan sistem recovery otomatis yang memungkinkan migrasi
 sudo bash install_streamhib.sh
 ```
 
-#### 2. Transfer Data dari Server Lama
-```bash
-# Copy file video
-scp -r root@server_lama:/root/StreamHibV2/videos /root/StreamHibV2/
+#### 2. Gunakan Migration Wizard
+1. Login ke Admin Panel server baru
+2. Masuk menu **Migration**
+3. Input detail server lama:
+   - IP Address server lama
+   - Username (biasanya `root`)
+   - Password server lama
+4. Klik **Test Connection** untuk validasi
+5. Klik **Start Migration** untuk mulai transfer
+6. Tunggu proses selesai (real-time progress)
+7. Klik **Start Recovery** untuk restore sessions
 
-# Copy data sesi dan jadwal
-scp root@server_lama:/root/StreamHibV2/sessions.json /root/StreamHibV2/
-
-# Copy data user
-scp root@server_lama:/root/StreamHibV2/users.json /root/StreamHibV2/
-
-# Copy konfigurasi domain (jika ada)
-scp root@server_lama:/root/StreamHibV2/domain_config.json /root/StreamHibV2/
-```
-
-#### 3. Restart Service di Server Baru
-```bash
-sudo systemctl restart StreamHibV2.service
-```
+#### 3. Files yang Ditransfer Otomatis
+- ✅ `sessions.json` - Data sesi dan jadwal
+- ✅ `users.json` - Data user
+- ✅ `domain_config.json` - Konfigurasi domain
+- ✅ Semua video files (mp4, avi, mkv, mov)
 
 #### 4. Update DNS (jika menggunakan domain)
 ```bash
@@ -304,16 +304,7 @@ curl -X PUT "https://api.cloudflare.com/client/v4/zones/ZONE_ID/dns_records/RECO
   --data '{"type":"A","name":"streaming.yourdomain.com","content":"NEW_SERVER_IP"}'
 ```
 
-#### 5. Verifikasi Recovery
-- Sistem akan otomatis mendeteksi sesi yang hilang
-- Recovery berjalan setiap 5 menit secara otomatis
-- Cek log untuk memastikan recovery berhasil:
-
-```bash
-journalctl -u StreamHibV2.service -f | grep RECOVERY
-```
-
-#### 6. Matikan Server Lama
+#### 5. Matikan Server Lama
 Setelah memastikan semua berjalan normal di server baru, matikan server lama.
 
 ### Fitur Recovery Otomatis:
@@ -346,6 +337,8 @@ Setelah memastikan semua berjalan normal di server baru, matikan server lama.
 * **Cek Log Recovery**:
   `journalctl -u StreamHibV2.service -f | grep RECOVERY`
 
+* **Cek Log Migration**:
+  `journalctl -u StreamHibV2.service -f | grep MIGRATION`
 * **Cek Log Domain**:
   `journalctl -u StreamHibV2.service -f | grep DOMAIN`
 
@@ -498,11 +491,14 @@ StreamHibV2 siap digunakan untuk kebutuhan live streaming Anda dengan sistem mig
 ### 🎯 Keunggulan Migrasi Seamless + Domain:
 
 - ✅ **Zero Downtime**: Live stream tetap berjalan selama migrasi
+- ✅ **1-Click Migration**: Transfer semua data dengan Migration Wizard
+- ✅ **Real-time Progress**: Monitor progress transfer secara live
 - ✅ **Auto Recovery**: Sistem otomatis memulihkan sesi yang terputus
 - ✅ **Data Integrity**: Validasi data sebelum recovery
 - ✅ **Real-time Monitoring**: Log detail untuk tracking proses
 - ✅ **Manual Trigger**: Bisa dipicu manual jika diperlukan
 - ✅ **Domain Support**: Akses profesional dengan SSL gratis
 - ✅ **Customer Friendly**: Customer tidak perlu tahu perubahan teknis
+- ✅ **Error Handling**: Retry dan rollback otomatis jika gagal
 
 ---
