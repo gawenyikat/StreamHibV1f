@@ -23,6 +23,7 @@ from apscheduler.jobstores.base import JobLookupError # Tambahkan import ini
 import time
 import paramiko
 import scp
+import threading
 
 # Konfigurasi logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -2753,7 +2754,7 @@ def test_migration_connection():
 @app.route('/api/migration/start', methods=['POST'])
 @admin_required
 def start_migration():
-    global migration_in_progress, recovery_enabled
+    global migration_in_progress
     
     if migration_in_progress:
         return jsonify({'success': False, 'message': 'Migration already in progress'})
@@ -2764,7 +2765,6 @@ def start_migration():
     password = data.get('password')
     
     # Disable auto-recovery during migration
-    recovery_enabled = False
     migration_in_progress = True
     
     # Start migration in background thread
@@ -2780,11 +2780,10 @@ def start_migration():
 @app.route('/api/migration/recovery', methods=['POST'])
 @admin_required
 def migration_recovery():
-    global recovery_enabled, migration_in_progress
+    global migration_in_progress
     
     try:
         # Re-enable auto-recovery
-        recovery_enabled = True
         migration_in_progress = False
         
         # Perform recovery
@@ -2800,7 +2799,7 @@ def migration_recovery():
 @app.route('/api/migration/rollback', methods=['POST'])
 @admin_required
 def migration_rollback():
-    global recovery_enabled, migration_in_progress
+    global migration_in_progress
     
     try:
         # Restore backup files if they exist
@@ -2819,7 +2818,6 @@ def migration_rollback():
         # This is a simplified rollback - in production you might want more sophisticated backup
         
         # Re-enable auto-recovery
-        recovery_enabled = True
         migration_in_progress = False
         
         return jsonify({'success': True, 'message': 'Rollback completed'})
@@ -2845,7 +2843,7 @@ def perform_migration(ip, username, password):
         socketio.emit('migration_progress', {'step': 'download', 'progress': 30, 'message': 'Downloading files...'})
         
         # Download files using SCP
-        with scp.SCPClient(ssh.get_transport()) as scp_client:
+        with SCPClient(ssh.get_transport()) as scp_client:
             # Download sessions.json
             socketio.emit('migration_log', {'message': 'Downloading sessions.json...', 'type': 'info'})
             try:
@@ -2914,9 +2912,8 @@ def perform_migration(ip, username, password):
         socketio.emit('migration_complete', {'message': 'Migration completed successfully'})
         
     except Exception as e:
-        global migration_in_progress, recovery_enabled
+        global migration_in_progress
         migration_in_progress = False
-        recovery_enabled = True
         
         socketio.emit('migration_log', {'message': f'Migration failed: {str(e)}', 'type': 'error'})
         socketio.emit('migration_error', {'message': str(e)})

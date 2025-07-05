@@ -30,6 +30,14 @@
                 <i class="fas fa-server mr-2 text-blue-500"></i>Server Migration Wizard
             </h2>
             
+            <!-- Reset Migration State (for debugging) -->
+            <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p class="text-yellow-800 text-sm">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    If migration is stuck, you can <button onclick="resetMigrationState()" class="text-blue-600 underline">reset migration state</button>
+                </p>
+            </div>
+            
             <form id="migrationForm" class="space-y-6">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
@@ -507,7 +515,57 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Auto-focus on IP field
             document.getElementById('oldServerIP').focus();
+            
+            // Check migration status on load
+            checkMigrationStatus();
         });
+        
+        // Check migration status
+        async function checkMigrationStatus() {
+            try {
+                const response = await fetch('/api/migration/status');
+                const result = await response.json();
+                
+                if (result.success && result.migration_in_progress) {
+                    // Migration is in progress, show status
+                    document.getElementById('migrationStatus').style.display = 'block';
+                    document.getElementById('logSection').style.display = 'block';
+                    document.getElementById('startMigrationBtn').disabled = true;
+                    
+                    addLogEntry('Migration in progress detected on page load', 'info');
+                }
+            } catch (error) {
+                console.error('Error checking migration status:', error);
+            }
+        }
+        
+        // Reset migration state (for debugging)
+        async function resetMigrationState() {
+            if (!confirm('Reset migration state? This will clear any stuck migration process.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/migration/reset', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Migration state reset successfully!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (error) {
+                alert('Reset error: ' + error.message);
+            }
+        }
     </script>
 </body>
 </html>
