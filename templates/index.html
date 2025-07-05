@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="id" class="dark" x-data="appState()" x-init="init()">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title x-text="`${t('appTitle')} - ${currentLang === 'id' ? 'Terhubung' : 'Connected'}`"></title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': { DEFAULT: '#4299e1', 'light': '#63b3ed', 'dark': '#3182ce' },
+                        'secondary': { DEFAULT: '#667eea', 'light': '#7f9cf5', 'dark': '#5a67d8' },
+                        'danger': { DEFAULT: '#f56565', 'light': '#fc8181', 'dark': '#e53e3e' },
+                        'warning': { DEFAULT: '#ecc94b', 'light': '#f6e05e', 'dark': '#d69e2e' },
+                        'success': { DEFAULT: '#48bb78', 'light': '#68d391', 'dark': '#38a169' },
+                        'background': '#0F172A',
+                        'surface': '#1E293B',
+                        'element': '#334155',
+                        'muted': '#4B5563',
+                        'text-primary': '#FFFFFF',
+                        'text-secondary': '#CBD5E1',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', "Segoe UI", 'Roboto', "Helvetica Neue", 'Arial', "Noto Sans", 'sans-serif', "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"],
+                    },
+                }
+            }
+        }
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/focus@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: var(--tailwind-theme-colors-background, #1a202c); color: var(--tailwind-theme-colors-text-primary, #f7fafc); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--tailwind-theme-colors-surface, #2d3748); }
+        ::-webkit-scrollbar-thumb { background: var(--tailwind-theme-colors-muted, #718096); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--tailwind-theme-colors-element, #4a5568); }
+
+        .sidebar-nav-link.active, .bottom-nav-link.active { background-color: var(--tailwind-theme-colors-element, #4a5568); color: var(--tailwind-theme-colors-primary-default, #4299e1); border-left-color: var(--tailwind-theme-colors-primary-default, #4299e1); }
+        .sidebar-nav-link.active .nav-icon, .bottom-nav-link.active .nav-icon { color: var(--tailwind-theme-colors-primary-default, #4299e1); }
+        
+        .modal { display: none; position: fixed; z-index: 50; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.8); align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .modal-content { background-color: var(--tailwind-theme-colors-surface, #2d3748); margin: auto; padding: 24px; border: 1px solid var(--tailwind-theme-colors-element, #4a5568); width: 90%; max-width: 600px; border-radius: 0.75rem; color: var(--tailwind-theme-colors-text-primary, #e2e8f0); max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); }
+        .modal-header h2 { color: var(--tailwind-theme-colors-text-primary, #cbd5e0); }
+        .close-button { color: var(--tailwind-theme-colors-text-secondary, #a0aec0); }
+        .close-button:hover { color: var(--tailwind-theme-colors-text-primary, #e2e8f0); }
+        
+        .form-input, .form-select { background-color: var(--tailwind-theme-colors-element, #4a5568); border-color: var(--tailwind-theme-colors-muted, #718096); color: var(--tailwind-theme-colors-text-primary, #e2e8f0); }
+        .form-input:focus, .form-select:focus { border-color: var(--tailwind-theme-colors-primary-default, #4299e1); box-shadow: 0 0 0 3px var(--tailwind-theme-colors-primary-light, #63b3ed)30; }
+        .form-label { color: var(--tailwind-theme-colors-text-secondary, #a0aec0); }
+        
+        .btn-primary { background-color: var(--tailwind-theme-colors-primary-default); }
+        .btn-primary:hover { background-color: var(--tailwind-theme-colors-primary-dark); }
+        .btn-secondary { background-color: var(--tailwind-theme-colors-secondary-default); }
+        .btn-secondary:hover { background-color: var(--tailwind-theme-colors-secondary-dark); }
+        .btn-danger { background-color: var(--tailwind-theme-colors-danger-default); }
+        .btn-danger:hover { background-color: var(--tailwind-theme-colors-danger-dark); }
+        .btn-warning { background-color: var(--tailwind-theme-colors-warning-default); color: var(--tailwind-theme-colors-background); }
+        .btn-warning:hover { background-color: var(--tailwind-theme-colors-warning-dark); }
+        .btn-outline-secondary { border-color: var(--tailwind-theme-colors-muted); color: var(--tailwind-theme-colors-text-secondary); }
+        .btn-outline-secondary:hover { background-color: var(--tailwind-theme-colors-element); color: var(--tailwind-theme-colors-text-primary); }
+        .btn-lang.active { background-color: var(--tailwind-theme-colors-primary-default); color: white; border-color: var(--tailwind-theme-colors-primary-default); }
+
+        .card { background-color: var(--tailwind-theme-colors-surface, #2d3748); border-color: var(--tailwind-theme-colors-element, #4a5568); color: var(--tailwind-theme-colors-text-primary, #e2e8f0); }
+        .card:hover { box-shadow: 0 10px 15px -3px var(--tailwind-theme-colors-primary-default, #4299e1)20, 0 4px 6px -2px var(--tailwind-theme-colors-primary-default, #4299e1)10; }
+        .card-title { color: var(--tailwind-theme-colors-text-primary, #cbd5e0); }
+        .card-content p { color: var(--tailwind-theme-colors-text-secondary, #a0aec0); }
+        .card-content .font-medium { color: var(--tailwind-theme-colors-text-primary, #e2e8f0); }
+
+        .progress-bar-bg { background-color: var(--tailwind-theme-colors-element, #4a5568); }
+        .progress-bar-fill { background-color: var(--tailwind-theme-colors-primary-default, #4299e1); }
+        
+        .toast { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); }
+        .toast.error { background-color: var(--tailwind-theme-colors-danger-dark, #c53030); }
+        .toast.success { background-color: var(--tailwind-theme-colors-success-dark, #2f855a); }
+        .toast.info { background-color: var(--tailwind-theme-colors-primary-dark, #2b6cb0); }
+        
+        #bottomNav { background-color: var(--tailwind-theme-colors-surface, #1f2937); border-top-color: var(--tailwind-theme-colors-element, #374151); }
+        #bottomNav .nav-link-mobile { flex: 1 1 0%; text-align: center; }
+
+        [x-cloak] { display: none !important; }
+        .spinner { border: 4px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top-color: var(--tailwind-theme-colors-primary-default, #38b2ac); width: 1.25rem; height: 1.25rem; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .input-field {
+            width: 100%; padding: 0.625rem 0.75rem;
+            background-color: var(--tailwind-theme-colors-element, #4a5568);
+            border: 1px solid var(--tailwind-theme-colors-muted, #718096);
+            border-radius: 0.375rem;
+            color: var(--tailwind-theme-colors-text-primary, #e2e8f0);
+            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .input-field:focus { outline: none; border-color: var(--tailwind-theme-colors-primary-default, #4299e1); box-shadow: 0 0 0 2px var(--tailwind-theme-colors-primary-light, #63b3ed)40; }
+        .btn-primary-modal {
+            background-color: #4299e1;
+            color: white;
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: background-color 0.2s ease-in-out;
+            line-height: 1.25rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-width: 1px;
+            border-color: transparent;
+        }
+        .btn-primary-modal:hover {
+            background-color: #3182ce;
+        }
+        .btn-primary-modal:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary-modal {
+            background-color: #4B5563;
+            color: #FFFFFF;
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: background-color 0.2s ease-in-out;
+            line-height: 1.25rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-width: 1px;
+            border-color: transparent;
+        }
+        .btn-secondary-modal:hover {
+            background-color: #334155;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <header class="bg-surface shadow-md sticky top-0 z-40">
+    <div class="w-full px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+            <img src="/static/logostreamhib.png" alt="StreamHib Logo" class="h-10 w-10 rounded-md border border-muted object-cover">
+            <div>
+                <h1 class="text-2xl font-bold text-text-primary" x-text="t('appTitle')"></h1>
+                <p class="text-xs text-text-secondary hidden sm:block" x-text="t('appTagline')"></p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <div id="trialModeIndicatorAlpine" class="text-sm text-yellow-300 hidden p-2 px-3 bg-yellow-600 bg-opacity-75 rounded-md shadow" x-show="trialMode.active" x-text="trialMode.message" x-transition></div>
+            <div class="text-xs text-text-secondary flex items-center space-x-1" title="Waktu Browser Anda Saat Ini">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 opacity-75">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+        <span x-text="currentBrowserDateTimeDisplay"></span>
+    </div>
+    
+   <div class="relative" x-data="{ langDropdownOpen: false }">
+                <button @click="langDropdownOpen = !langDropdownOpen" class="flex items-center text-sm text-text-secondary hover:text-primary focus:outline-none p-2 rounded-md hover:bg-element transition-colors">
+                    <span x-text="currentLang.toUpperCase()"></span>
+                    <svg class="w-4 h-4 ml-1 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>
+                </button>
+                <div x-show="langDropdownOpen" @click.away="langDropdownOpen = false"
+                     class="absolute right-0 mt-2 w-24 bg-element rounded-md shadow-lg py-1 z-50 border border-muted" x-transition>
+                    <a href="#" @click.prevent="setLang('id'); langDropdownOpen = false;"
+                       class="block px-4 py-2 text-sm hover:bg-muted"
+                       :class="{'text-primary font-semibold bg-muted': currentLang === 'id', 'text-text-primary': currentLang !== 'id'}">ID</a>
+                    <a href="#" @click.prevent="setLang('en'); langDropdownOpen = false;"
+                       class="block px-4 py-2 text-sm hover:bg-muted"
+                       :class="{'text-primary font-semibold bg-muted': currentLang === 'en', 'text-text-primary': currentLang !== 'en'}">EN</a>
+                </div>
+            </div>
+            <span class="text-sm text-text-secondary hidden md:inline" x-text="loggedInUser ? `${t('userLabel')}: ${loggedInUser}` : t('notLoggedIn')"></span>
+            <a href="/logout" x-show="loggedInUser" class="hidden sm:inline-flex items-center px-3 py-1.5 bg-danger hover:bg-danger-dark text-white text-xs font-medium rounded-md transition-colors">
+                <svg class="icon w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                <span class="ml-1.5" x-text="t('logoutButton')"></span>
+            </a>
+             <a href="https://t.me/your_telegram_group" target="_blank" class="hidden sm:inline-flex items-center px-4 py-2 bg-secondary hover:bg-indigo-600 text-white text-sm font-medium rounded-md transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                </svg>
+                <span x-text="t('joinTelegramButton')"></span>
+            </a>
+        </div>
+    </div>
+</header>
+
+    <div class="flex flex-1">
+        <aside :class="{'w-64': sidebarOpen, 'w-20': !sidebarOpen, 'hidden': !isDesktop}" 
+       class="md:flex flex-col bg-surface transition-all duration-300 ease-in-out overflow-y-auto border-r border-muted 
+              sticky top-16 z-30 self-start"  
+       style="height: calc(100vh - 4rem);"> 
+            <nav class="flex-1 px-2 py-4 space-y-2">
+                <button @click="sidebarOpen = !sidebarOpen; localStorage.setItem('sidebarPreference', sidebarOpen ? 'open' : 'closed')" class="p-2 rounded-md text-text-secondary hover:bg-element hover:text-primary mb-4 hidden md:block w-full text-left">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 inline" :class="{'transform rotate-180': !sidebarOpen}">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+                    </svg>
+                    <span x-show="sidebarOpen" class="ml-2" x-text="t('collapseSidebarButton')"></span>
+                </button>
+                <template x-for="item in translatedNavigation" :key="item.id">
+                    <a :href="'#' + item.id" @click="currentView = item.id; setActiveNav(item.id)"
+                       class="sidebar-nav-link flex items-center px-3 py-3 text-sm font-medium rounded-md text-text-secondary hover:bg-element hover:text-primary transition-colors border-l-4 border-transparent"
+                       :class="{ 'active': currentView === item.id }">
+                        <span x-html="item.icon" class="nav-icon w-6 h-6 mr-3"></span>
+                        <span x-show="sidebarOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-100" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="truncate" x-text="item.name"></span>
+                    </a>
+                </template>
+            </nav>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto bg-background px-4 pt-4 pb-24 sm:px-6 sm:pt-6 sm:pb-24 md:p-6 lg:p-8">
+            <div x-show="currentView === 'dashboard'" x-cloak>
+                <h2 class="text-3xl font-semibold text-text-primary mb-6 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 mr-3 text-primary"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h12A2.25 2.25 0 0 0 20.25 14.25V3M3.75 19.5h16.5M5.625 7.5h12.75m-12.75 3h12.75M21 17.25C21 18.4914 20.0086 19.5 18.75 19.5H5.25C4.00858 19.5 3 18.4914 3 17.25V6.75C3 5.50858 4.00858 4.5 5.25 4.5H18.75C20.0086 4.5 21 5.50858 21 6.75V17.25Z" /></svg>
+                    <span x-text="t('dashboardTitle')"></span>
+                </h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <template x-for="stat in translatedDashboardStats" :key="stat.id">
+                        <div class="bg-surface p-6 rounded-xl shadow-lg hover:shadow-primary/30 transition-shadow">
+                            <div class="flex items-center justify-between">
+                                <p class="text-sm font-medium text-text-secondary" x-text="stat.name"></p>
+                                <span x-html="stat.icon" class="w-7 h-7 text-primary"></span>
+                            </div>
+                            <p class="mt-1 text-3xl font-semibold text-text-primary" x-text="stat.value"></p>
+                        </div>
+                    </template>
+                    <div class="bg-surface p-6 rounded-xl shadow-lg hover:shadow-primary/30 transition-shadow col-span-1 sm:col-span-2 lg:col-span-full xl:col-span-2">
+                        <h3 class="text-lg font-medium text-text-primary mb-3" x-text="t('diskUsageTitle')"></h3>
+                        <div class="space-y-1 text-sm text-text-secondary">
+                            <p><span x-text="t('diskStatusLabel')"></span>: <span class="font-semibold text-text-primary" x-text="t(diskUsage.status ? diskUsage.status.toLowerCase() : 'normal')"></span></p>
+                            <p><span x-text="t('diskTotalLabel')"></span>: <span x-text="diskUsage.total !== undefined ? diskUsage.total : '0'"></span> GB | <span x-text="t('diskUsedLabel')"></span>: <span x-text="diskUsage.used !== undefined ? diskUsage.used : '0'"></span> GB | <span x-text="t('diskFreeLabel')"></span>: <span x-text="diskUsage.free !== undefined ? diskUsage.free : '0'"></span> GB</p>
+                        </div>
+                        <div class="w-full bg-element rounded-full h-3 mt-3 mb-1">
+                            <div class="bg-primary h-3 rounded-full" :style="`width: ${diskUsage.percent_used || 0}%`"></div>
+                        </div>
+                        <p class="text-xs text-text-secondary text-right" x-text="`${diskUsage.percent_used !== undefined ? diskUsage.percent_used.toFixed(2) : '0.00'}% ${t('diskUsedPercentageSuffix')}`"></p>
+                        <div x-show="diskUsage.status === 'full' || diskUsage.status === 'almost_full'" class="mt-2 p-3 bg-warning/20 text-warning rounded-md text-sm flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.008v.008H12v-.008Z" /></svg>
+                            <span x-text="diskUsage.status === 'full' ? t('diskFullAlert') : t('diskAlmostFullAlert')"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="currentView === 'videos'" x-cloak>
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
+        <div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 w-full sm:w-auto mb-4 sm:mb-0">
+            <h2 class="text-3xl font-semibold text-text-primary flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 mr-3 text-primary">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9a2.25 2.25 0 0 0-2.25 2.25v9A2.25 2.25 0 0 0 4.5 18.75Z"></path>
+                </svg>
+                <span x-text="t('videosTitle')"></span>
+                <span class="ml-2 text-2xl font-normal text-text-secondary" x-text="`(${videos.length})`"></span>
+            </h2>
+            <input type="text" x-model.debounce.300ms="searchQueryVideos" 
+                   :placeholder="t('searchPlaceholderShort') || 'Cari...'" 
+                   class="input-field py-1 px-2 text-sm rounded-md w-full sm:w-48 md:w-56" aria-label="Cari Video">
+        </div>
+
+        <div class="flex space-x-3">
+            <button @click="openModal('downloadVideoModal')" class="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded-md transition-colors">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+    </svg>
+    <span x-text="t('downloadVideoButton')"></span>
+</button>
+            <button @click="confirmAction(t('deleteAllVideosConfirmation'), deleteAllVideos)" class="inline-flex items-center px-4 py-2 bg-danger hover:bg-red-600 text-white text-sm font-medium rounded-md transition-colors">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.56 0c1.153 0 2.243.096 3.288.257m-3.288-.257A48.361 48.361 0 0 1 11.98 4.25c.618 0 1.227.035 1.814.097M4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.56 0c1.153 0 2.243.096 3.288.257m-3.288-.257A48.361 48.361 0 0 1 11.98 4.25c.618 0 1.227.035 1.814.097" />
+    </svg>
+    <span x-text="t('deleteAllVideosButton')"></span>
+</button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" id="videoGridAlpine">
+        <template x-if="filteredVideos.length === 0 && !loadingStates.videos">
+            <p class="col-span-full text-center text-text-secondary py-8" 
+               x-text="searchQueryVideos.trim() ? (t('noSearchResultsForQuery') ? t('noSearchResultsForQuery') + ' \'' + searchQueryVideos + '\'.' : 'Tidak ada hasil untuk: \'' + searchQueryVideos + '\'.') : t('noVideosMessage')"></p>
+        </template>
+        <template x-if="loadingStates.videos">
+            <p class="col-span-full text-center text-text-secondary py-8" x-text="t('loadingVideosMessage')"></p>
+        </template>
+        <template x-for="video in filteredVideos" :key="video.id"> <div class="bg-surface rounded-xl shadow-lg overflow-hidden flex flex-col group hover:ring-2 hover:ring-primary transition-all">
+                <div @click="openModal('previewVideoModal', video)" class="cursor-pointer w-full h-40 bg-element flex items-center justify-center text-muted group-hover:text-primary transition-colors relative">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16"><path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9a2.25 2.25 0 0 0-2.25 2.25v9A2.25 2.25 0 0 0 4.5 18.75Z" /></svg>
+                    <div class="absolute inset-0 bg-black bg-opacity-20 group-hover:bg-opacity-10 transition-opacity flex items-center justify-center">
+                        <svg class="h-12 w-12 text-white opacity-50 group-hover:opacity-80 transition-opacity" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8.118v3.764a1 1 0 001.555.832l3.197-1.882a1 1 0 000-1.664l-3.197-1.882z" clip-rule="evenodd"></path></svg>
+                    </div>
+                </div>
+                <div class="p-4 flex-grow flex flex-col justify-between">
+                    <div>
+                        <h3 class="font-semibold text-text-primary truncate" x-text="video.name" :title="video.name"></h3>
+                    </div>
+                    <div class="mt-4 flex space-x-2">
+                        <button @click="openModal('renameVideoModal', video)" class="p-2 bg-element hover:bg-muted text-text-secondary hover:text-warning rounded-md transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" /></svg>
+                        </button>
+                        <button @click="confirmAction(t('deleteVideoConfirmation', { videoName: video.name }), () => deleteVideo(video.id))" class="p-2 bg-element hover:bg-muted text-text-secondary hover:text-danger rounded-md transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.56 0c1.153 0 2.243.096 3.288.257m-3.288-.257A48.361 48.361 0 0 1 11.98 4.25c.618 0 1.227.035 1.814.097M4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.56 0c1.153 0 2.243.096 3.288.257m-3.288-.257A48.361 48.361 0 0 1 11.98 4.25c.618 0 1.227.035 1.814.097" /></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+</div>
+            <div x-show="currentView === 'live-sessions'" x-cloak>
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
+        <div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 w-full sm:w-auto mb-4 sm:mb-0">
+            <h2 class="text-3xl font-semibold text-text-primary flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 mr-3 text-danger">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75m-2.625 0a2.625 2.625 0 1 0 5.25 0 2.625 2.625 0 1 0-5.25 0Z"></path>
+                </svg>
+                <span x-text="t('liveSessionsTitle')"></span>
+                <span class="ml-2 text-2xl font-normal text-text-secondary" x-text="`(${liveSessions.length})`"></span>
+            </h2>
+            <input type="text" x-model.debounce.300ms="searchQueryLive" 
+                   :placeholder="t('searchPlaceholderShort') || 'Cari...'" 
+                   class="input-field py-1 px-2 text-sm rounded-md w-full sm:w-48 md:w-56"
+                   aria-label="Cari Sesi Live">
+        </div>
+
+        <div class="flex space-x-3">
+            <button @click="openModal('startManualLiveModal')" class="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary-dark text-white text-sm font-medium rounded-md transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path></svg>
+                <span x-text="t('startManualLiveButton')"></span>
+            </button>
+            <button @click="openModal('scheduleNewLiveModal')" class="inline-flex items-center px-4 py-2 bg-secondary hover:bg-indigo-600 text-white text-sm font-medium rounded-md transition-colors">
+               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5M12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008ZM9.75 15h.008v.008H9.75V15Zm0 2.25h.008v.008H9.75v-.008ZM7.5 15h.008v.008H7.5V15Zm0 2.25h.008v.008H7.5v-.008Zm6.75-4.5h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V15Zm0 2.25h.008v.008h-.008v-.008Zm2.25-4.5h.008v.008H16.5v-.008Zm0 2.25h.008v.008H16.5V15Z"></path></svg>
+                <span x-text="t('scheduleNewLiveButton')"></span>
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <template x-if="filteredLiveSessions.length === 0 && !loadingStates.liveSessions">
+            <p class="col-span-full text-center text-text-secondary py-8"
+               x-text="searchQueryLive.trim() ? (t('noSearchResultsForQuery') ? t('noSearchResultsForQuery') + ' \'' + searchQueryLive + '\'.' : 'Tidak ada hasil untuk: \'' + searchQueryLive + '\'.') : t('noLiveSessionsMessage')"></p>
+        </template>
+        <template x-if="loadingStates.liveSessions">
+            <p class="col-span-full text-center text-text-secondary py-8" x-text="t('loadingLiveSessionsMessage')"></p>
+        </template>
+        <template x-for="session in filteredLiveSessions" :key="session.id">
+            <div class="bg-surface rounded-xl shadow-lg p-5">
+                <div class="flex justify-between items-start">
+                    <h3 class="text-lg font-semibold text-primary truncate" x-text="session.name"></h3>
+                    <span class="text-xs px-2 py-1 rounded-full"
+                          :class="{
+                            'bg-green-500/20 text-green-400': session.scheduleType === 'manual' || session.scheduleType === 'manual_recovered' || session.scheduleType === 'manual_reactivated' || session.scheduleType === 'manual_recovered_new',
+                            'bg-blue-500/20 text-blue-400': session.scheduleType === 'scheduled' || session.scheduleType === 'scheduled_recovered' || session.scheduleType === 'scheduled_recovered_overdue',
+                            'bg-purple-500/20 text-purple-400': session.scheduleType === 'daily_recurring_instance' || session.scheduleType === 'daily_recurring_instance_recovered',
+                            'bg-yellow-500/20 text-yellow-400': session.scheduleType === 'manual_from_schedule_error' || session.scheduleType === 'manual_recovered_daily_data_missing' || session.scheduleType === 'manual_recovered_onetime_data_missing' || session.scheduleType === 'manual_force_stop'
+                          }"
+                          x-text="mapScheduleTypeToDisplay(session.scheduleType)"></span>
+                </div>
+                <div class="mt-3 space-y-1.5 text-sm text-text-secondary">
+                    <p><strong class="text-text-primary" x-text="t('videoLabel')"></strong>: <span x-text="session.video_name"></span></p>
+                    <p><strong class="text-text-primary" x-text="t('platformLabel')"></strong>: <span x-text="session.platform"></span></p>
+                    <p><strong class="text-text-primary" x-text="t('streamKeyLabel')"></strong>: <span x-text="session.stream_key" class="break-all"></span></p>
+                    <p><strong class="text-text-primary" x-text="t('startTimeLabel')"></strong>: <span x-text="formatDateTime(session.startTime)"></span></p>
+                    <p><strong class="text-text-primary" x-text="t('autoStopLabel')"></strong>: <span x-text="session.stopTime ? session.stopTime : t('manualStopLabel')"></span></p>
+                </div>
+                <div class="mt-5">
+                    <button @click="confirmAction(t('stopSessionConfirmation', { sessionName: session.name }), () => stopLiveSession(session.id))" class="w-full inline-flex items-center justify-center px-4 py-2 bg-danger hover:bg-red-600 text-white text-sm font-medium rounded-md transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 7.5A2.25 2.25 0 0 1 7.5 5.25h9a2.25 2.25 0 0 1 2.25 2.25v9a2.25 2.25 0 0 1-2.25 2.25h-9a2.25 2.25 0 0 1-2.25-2.25v-9Z" /></svg>
+                        <span x-text="t('stopSessionButton')"></span>
+                    </button>
+                </div>
+            </div>
+        </template>
+    </div>
+</div>
+
+            <div x-show="currentView === 'scheduled-sessions'" x-cloak>
+    <div class="flex flex-col sm:flex-row items-center sm:justify-start gap-2 sm:gap-4 mb-6">
+        <h2 class="text-3xl font-semibold text-text-primary flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 mr-3 text-primary">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5M12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008ZM9.75 15h.008v.008H9.75V15Zm0 2.25h.008v.008H9.75v-.008ZM7.5 15h.008v.008H7.5V15Zm0 2.25h.008v.008H7.5v-.008Zm6.75-4.5h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V15Zm0 2.25h.008v.008h-.008v-.008Zm2.25-4.5h.008v.008H16.5v-.008Zm0 2.25h.008v.008H16.5V15Z"></path>
+            </svg>
+            <span x-text="t('scheduledSessionsTitle')"></span>
+            <span class="ml-2 text-2xl font-normal text-text-secondary" x-text="`(${scheduledSessions.length})`"></span>
+        </h2>
+        <input type="text" x-model.debounce.300ms="searchQueryScheduled" 
+               :placeholder="t('searchPlaceholderShort') || 'Cari...'" 
+               class="input-field py-1 px-2 text-sm rounded-md w-full sm:w-48 md:w-56"
+               aria-label="Cari Sesi Terjadwal">
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <template x-if="filteredScheduledSessions.length === 0 && !loadingStates.scheduledSessions">
+            <p class="col-span-full text-center text-text-secondary py-8"
+               x-text="searchQueryScheduled.trim() ? (t('noSearchResultsForQuery') ? t('noSearchResultsForQuery') + ' \'' + searchQueryScheduled + '\'.' : 'Tidak ada hasil untuk: \'' + searchQueryScheduled + '\'.') : t('noScheduledSessionsMessage')"></p>
+        </template>
+        <template x-if="loadingStates.scheduledSessions">
+            <p class="col-span-full text-center text-text-secondary py-8" x-text="t('loadingScheduledSessionsMessage')"></p>
+        </template>
+        <template x-for="session in filteredScheduledSessions" :key="session.id">
+            <div class="bg-surface rounded-xl shadow-lg p-5">
+                <div class="flex justify-between items-start">
+                    <h3 class="text-lg font-semibold text-primary truncate" x-text="session.session_name_original"></h3>
+                    <span class="text-xs px-2 py-1 rounded-full"
+                          :class="{
+                            'bg-blue-500/20 text-blue-400': session.recurrence_type === 'one_time',
+                            'bg-purple-500/20 text-purple-400': session.recurrence_type === 'daily'
+                          }"
+                          x-text="t(session.recurrence_type.toLowerCase())"></span>
+                </div>
+                <div class="mt-3 space-y-1.5 text-sm text-text-secondary">
+                    <p><strong class="text-text-primary" x-text="t('videoLabel')"></strong>: <span x-text="session.video_file"></span></p>
+                    <p><strong class="text-text-primary" x-text="t('platformLabel')"></strong>: <span x-text="session.platform"></span></p>
+                    <p><strong class="text-text-primary" x-text="t('streamKeyLabel')"></strong>: <span x-text="session.stream_key" class="break-all"></span></p>
+                    <p><strong class="text-text-primary" x-text="t('scheduleLabel')"></strong>: <span x-text="session.start_time_display"></span></p>
+                    <p><strong class="text-text-primary" x-text="t('endsLabel')"></strong>: <span x-text="session.stop_time_display"></span></p>
+                </div>
+                <div class="mt-5 space-y-2">
+                    <button @click="openModal('editScheduleModal', session)" class="w-full inline-flex items-center justify-center px-4 py-2 bg-warning hover:bg-amber-600 text-black text-sm font-medium rounded-md transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" /></svg>
+                        <span x-text="t('editScheduleButton')"></span>
+                    </button>
+                    <button @click="confirmAction(t('cancelScheduleConfirmation', { sessionName: session.session_name_original }), () => cancelScheduledSession(session.id))" class="w-full inline-flex items-center justify-center px-4 py-2 bg-danger hover:bg-red-600 text-white text-sm font-medium rounded-md transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                        <span x-text="t('cancelScheduleButton')"></span>
+                    </button>
+                </div>
+            </div>
+        </template>
+    </div>
+</div>
+
+           <div x-show="currentView === 'inactive-sessions'" x-cloak>
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
+        <div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 w-full sm:w-auto mb-4 sm:mb-0">
+            <h2 class="text-3xl font-semibold text-text-primary flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 mr-3 text-muted">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.393-.029.802.018 1.163.129m-2.139 14.253H6.375m0 0L4.875 16.5m1.5 4.5V7.5m3.75 13.5h4.875c.621 0 1.125-.504 1.125-1.125V15c0-.621-.504-1.125-1.125-1.125H9.75V7.5M8.25 7.5h2.625m0 0H12M8.25 7.5V15m0 0H6.375m0 0v4.875c0 .621.504 1.125 1.125 1.125h2.625M12 10.5h2.625c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125H12v-4.5Z" />
+                </svg>
+                <span x-text="t('inactiveSessionsTitle')"></span>
+                <span class="ml-2 text-2xl font-normal text-text-secondary" x-text="`(${inactiveSessions.length})`"></span>
+            </h2>
+            <input type="text" x-model.debounce.300ms="searchQueryInactive" 
+                   :placeholder="t('searchPlaceholderShort') || 'Cari...'" 
+                   class="input-field py-1 px-2 text-sm rounded-md w-full sm:w-48 md:w-56"
+                   aria-label="Cari Sesi Nonaktif">
+        </div>
+
+        <div class="flex space-x-3">
+            <button @click="confirmAction(t('deleteAllInactiveSessionsConfirmation'), deleteAllInactiveSessions)" class="inline-flex items-center px-4 py-2 bg-danger hover:bg-red-600 text-white text-sm font-medium rounded-md transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.56 0c1.153 0 2.243.096 3.288.257m-3.288-.257A48.361 48.361 0 0 1 11.98 4.25c.618 0 1.227.035 1.814.097M4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.56 0c1.153 0 2.243.096 3.288.257m-3.288-.257A48.361 48.361 0 0 1 11.98 4.25c.618 0 1.227.035 1.814.097"></path>
+                </svg>
+                <span x-text="t('deleteAllInactiveSessionsButton')"></span>
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <template x-if="loadingStates.inactiveSessions"> <p class="col-span-full text-center text-text-secondary py-8" x-text="t('loadingInactiveSessionsMessage')"></p>
+        </template>
+        <template x-if="!loadingStates.inactiveSessions && filteredInactiveSessions.length === 0">
+             <p class="col-span-full text-center text-text-secondary py-8"
+                x-text="searchQueryInactive.trim() ? (t('noSearchResultsForQuery') ? t('noSearchResultsForQuery') + ' \'' + searchQueryInactive + '\'.' : 'Tidak ada hasil untuk: \'' + searchQueryInactive + '\'.') : t('noInactiveSessionsMessage')"></p>
+        </template>
+        <template x-if="!loadingStates.inactiveSessions && filteredInactiveSessions.length > 0">
+            <template x-for="(session, index) in filteredInactiveSessions" :key="session.id + '-' + session.stop_time + '-' + index">
+                <div class="bg-surface rounded-xl shadow-lg p-5">
+                    <h3 class="text-lg font-semibold text-text-primary truncate" x-text="session.id"></h3>
+                    <div class="mt-2 space-y-1 text-sm text-text-secondary">
+                        <p><strong class="text-text-primary" x-text="t('videoLabel')"></strong>: <span x-text="session.video_name"></span></p>
+                        <p><strong class="text-text-primary" x-text="t('platformLabel')"></strong>: <span x-text="session.platform"></span></p>
+                        <p><strong class="text-text-primary" x-text="t('streamKeyLabel')"></strong>: <span x-text="session.stream_key" class="break-all"></span></p>
+						<p><strong class="text-text-primary" x-text="t('durationLabel')"></strong>: <span x-text="formatDuration(session.start_time_original, session.stop_time)"></span></p>       
+                        <p><strong class="text-text-primary" x-text="t('lastStopTimeLabel')"></strong>: <span x-text="formatDateTime(session.stop_time)"></span></p>
+                    </div>
+                    <div class="mt-4 space-y-2">
+                        <div class="flex space-x-2">
+                            <button @click="reactivateSession(session.id)" class="flex-1 inline-flex items-center justify-center px-3 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-md transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"></path></svg>
+                                <span x-text="t('reactivateNowButton')"></span>
+                            </button>
+                            <button @click="openModal('editRescheduleModal', session)" class="flex-1 inline-flex items-center justify-center px-3 py-2 bg-secondary hover:bg-indigo-600 text-white text-xs font-medium rounded-md transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"></path></svg>
+                                <span x-text="t('editRescheduleButton')"></span>
+                            </button>
+                            <button @click="confirmAction(t('deleteInactiveSessionConfirmation', { sessionName: session.id }), () => deleteInactiveSession(session.id))" class="p-2 bg-element hover:bg-muted text-text-secondary hover:text-danger rounded-md transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.56 0c1.153 0 2.243.096 3.288.257m-3.288-.257A48.361 48.361 0 0 1 11.98 4.25c.618 0 1.227.035 1.814.097M4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12.56 0c1.153 0 2.243.096 3.288.257m-3.288-.257A48.361 48.361 0 0 1 11.98 4.25c.618 0 1.227.035 1.814.097"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </template>
+    </div>
+</div>
+
+        </main>
+    </div>
+
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-muted shadow-top z-40">
+        <div class="flex justify-around">
+            <template x-for="item in translatedNavigation" :key="item.id">
+                <a :href="'#' + item.id" @click="currentView = item.id; setActiveNav(item.id)"
+                   class="bottom-nav-link flex-1 flex flex-col items-center justify-center p-3 text-xs text-text-secondary hover:text-primary transition-colors"
+                   :class="{ 'active': currentView === item.id }">
+                    <span x-html="item.icon" class="nav-icon w-6 h-6 mb-1"></span>
+                    <span x-text="item.name"></span>
+                </a>
+            </template>
+        </div>
+    </nav>
+
+    <div x-show="activeModal === 'downloadVideoModal'" @keydown.escape.window="closeActiveModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" x-cloak>
+        <div @click.away="closeActiveModal()" class="modal-content bg-surface rounded-lg shadow-xl w-full max-w-lg p-6" x-transition>
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold text-primary flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                    <span x-text="t('modalDownloadVideoTitle')"></span>
+                </h3>
+                <button @click="closeActiveModal()" class="text-text-secondary hover:text-text-primary text-2xl leading-none">&times;</button>
+            </div>
+            <form @submit.prevent="handleDownloadVideo">
+                <div class="mb-4">
+                    <label for="gdriveUrl" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('gdriveUrlLabel')"></label>
+                    <input type="url" id="gdriveUrl" name="gdriveUrl" x-model="forms.downloadVideo.gdriveUrl" required class="w-full input-field" :placeholder="t('gdriveUrlPlaceholder')">
+                </div>
+                <div class="mb-4" x-show="forms.downloadVideo.isDownloading">
+                    <label class="block text-sm font-medium text-text-secondary mb-1" x-text="t('progressLabel')"></label>
+                    <div class="w-full bg-element rounded-full h-2.5">
+                        <div class="bg-primary h-2.5 rounded-full" :style="`width: ${forms.downloadVideo.progress}%`"></div>
+                    </div>
+                    <p class="text-xs text-text-secondary mt-1" x-text="`${forms.downloadVideo.progress}% - ${forms.downloadVideo.status}`"></p>
+                </div>
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" @click="closeActiveModal()" class="btn btn-secondary-modal" x-text="t('cancelButton')"></button>
+                    <button type="submit" :disabled="forms.downloadVideo.isDownloading" class="btn btn-primary-modal"
+                        :class="{'opacity-50 cursor-not-allowed': forms.downloadVideo.isDownloading}">
+                        <span x-show="forms.downloadVideo.isDownloading" class="spinner w-4 h-4 mr-2"></span>
+                        <span x-text="forms.downloadVideo.isDownloading ? t('downloadingButton') : t('downloadButton')"></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div x-show="activeModal === 'previewVideoModal'" @keydown.escape.window="closeActiveModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" x-cloak>
+        <div @click.away="closeActiveModal()" class="modal-content bg-surface rounded-lg shadow-xl w-full max-w-2xl p-6" x-transition>
+             <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-primary flex items-center truncate">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15.91 11.672a.375.375 0 0 1 0 .656l-5.603 3.113a.375.375 0 0 1-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112Z" /></svg>
+                    <span x-text="`${t('modalPreviewVideoTitle')}: ${currentVideoPreview?.name}`"></span>
+                </h3>
+                <button @click="closeActiveModal()" class="text-text-secondary hover:text-text-primary text-2xl leading-none">&times;</button>
+            </div>
+            <div class="aspect-video bg-black rounded-md flex items-center justify-center text-text-secondary">
+                <video x-show="currentVideoPreview?.url" controls :src="currentVideoPreview?.url" class="w-full h-full rounded-md" @error="showToast(t('videoPreviewError'), 'error')">
+                    Your browser does not support the video tag.
+                </video>
+                <span x-show="!currentVideoPreview?.url" x-text="t('videoPlayerPlaceholder')"></span>
+            </div>
+             <div class="flex justify-end mt-6">
+                <button type="button" @click="closeActiveModal()" class="btn btn-secondary-modal" x-text="t('closeButton')"></button>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="activeModal === 'renameVideoModal'" @keydown.escape.window="closeActiveModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" x-cloak>
+        <div @click.away="closeActiveModal()" class="modal-content bg-surface rounded-lg shadow-xl w-full max-w-lg p-6" x-transition>
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold text-primary flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" /></svg>
+                    <span x-text="t('modalRenameVideoTitle')"></span>
+                </h3>
+                <button @click="closeActiveModal()" class="text-text-secondary hover:text-text-primary text-2xl leading-none">&times;</button>
+            </div>
+            <form @submit.prevent="handleRenameVideo">
+                <input type="hidden" x-model="forms.renameVideo.id"> <div class="mb-4">
+                    <label for="newVideoName" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('newVideoNameLabel')"></label>
+                    <input type="text" id="newVideoName" name="newVideoName" x-model="forms.renameVideo.newNameBase" required class="w-full input-field" :placeholder="t('newVideoNamePlaceholder')">
+                </div>
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" @click="closeActiveModal()" class="btn btn-secondary-modal" x-text="t('cancelButton')"></button>
+                    <button type="submit" class="btn btn-primary-modal" x-text="t('renameButton')"></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div x-show="activeModal === 'startManualLiveModal'" @keydown.escape.window="closeActiveModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" x-cloak>
+        <div @click.away="closeActiveModal()" class="modal-content bg-surface rounded-lg shadow-xl w-full max-w-lg p-6" x-transition>
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold text-primary flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                    <span x-text="t('modalStartManualLiveTitle')"></span>
+                </h3>
+                <button @click="closeActiveModal()" class="text-text-secondary hover:text-text-primary text-2xl leading-none">&times;</button>
+            </div>
+            <form @submit.prevent="handleStartManualLive">
+                <div class="grid grid-cols-1 gap-4">
+                    <div>
+                        <label for="manualSessionNameAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('sessionNameLabel')"></label>
+                        <input type="text" id="manualSessionNameAlpine" x-model="forms.manualLive.sessionName" required class="w-full input-field" :placeholder="t('sessionNamePlaceholder')">
+                    </div>
+                    <div>
+                        <label for="manualVideoFileAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('videoFileLabel')"></label>
+                        <select id="manualVideoFileAlpine" x-model="forms.manualLive.videoFile" required class="w-full input-field">
+                            <option value="" disabled x-text="t('selectVideoPlaceholder')"></option>
+                            <template x-for="video in videos" :key="video.id"> <option :value="video.id" x-text="video.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="manualStreamKeyAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('streamKeyLabel')"></label>
+                        <input type="text" id="manualStreamKeyAlpine" x-model="forms.manualLive.streamKey" required class="w-full input-field" :placeholder="t('streamKeyPlaceholder')">
+                    </div>
+                    <div>
+                        <label for="manualPlatformAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('platformLabel')"></label>
+                        <select id="manualPlatformAlpine" x-model="forms.manualLive.platform" required class="w-full input-field">
+                            <option value="YouTube">YouTube</option>
+                            <option value="Facebook">Facebook</option>
+                            </select>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" @click="closeActiveModal()" class="btn btn-secondary-modal" x-text="t('cancelButton')"></button>
+                    <button type="submit" class="btn btn-primary-modal" x-text="t('startLiveButton')"></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div x-show="activeModal === 'scheduleNewLiveModal'" @keydown.escape.window="closeActiveModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" x-cloak>
+        <div @click.away="closeActiveModal()" class="modal-content bg-surface rounded-lg shadow-xl w-full max-w-lg p-6" x-transition>
+            <div class="flex justify-between items-start mb-6"> <div class="flex-grow mr-2"> <div class="flex items-center">
+                        <h3 class="text-xl font-semibold text-primary flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-2 text-primary">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5M12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008ZM9.75 15h.008v.008H9.75V15Zm0 2.25h.008v.008H9.75v-.008ZM7.5 15h.008v.008H7.5V15Zm0 2.25h.008v.008H7.5v-.008Zm6.75-4.5h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V15Zm0 2.25h.008v.008h-.008v-.008Zm2.25-4.5h.008v.008H16.5v-.008Zm0 2.25h.008v.008H16.5V15Z" />
+                            </svg>
+                            <span x-text="t('modalScheduleNewLiveTitle')"></span>
+                        </h3>
+                        
+                        <div class="hidden sm:flex text-xs text-text-secondary items-center space-x-1 ml-auto"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 opacity-75">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span x-text="currentBrowserDateTimeDisplay"></span>
+                        </div>
+                    </div>
+
+                    <div class="sm:hidden text-xs text-text-secondary flex items-center space-x-1 mt-1"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 opacity-75">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                        <span x-text="currentBrowserDateTimeDisplay"></span>
+                    </div>
+                </div>
+
+                <button @click="closeActiveModal()" class="text-text-secondary hover:text-text-primary text-2xl leading-none self-start">&times;</button>
+            </div>
+            <form @submit.prevent="handleScheduleNewLive">
+                <div class="grid grid-cols-1 gap-4">
+                    <div>
+                        <label for="schedSessionNameAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('sessionNameLabel')"></label>
+                        <input type="text" id="schedSessionNameAlpine" x-model="forms.scheduleLive.sessionName" required class="w-full input-field" :placeholder="t('sessionNamePlaceholderScheduled')">
+                    </div>
+                    <div>
+                        <label for="schedVideoFileAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('videoFileLabel')"></label>
+                        <select id="schedVideoFileAlpine" x-model="forms.scheduleLive.videoFile" required class="w-full input-field">
+                            <option value="" disabled x-text="t('selectVideoPlaceholder')"></option>
+                            <template x-for="video in videos" :key="video.id">
+                                <option :value="video.id" x-text="video.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="schedStreamKeyAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('streamKeyLabel')"></label>
+                        <input type="text" id="schedStreamKeyAlpine" x-model="forms.scheduleLive.streamKey" required class="w-full input-field" :placeholder="t('streamKeyPlaceholder')">
+                    </div>
+                    <div>
+                        <label for="schedPlatformAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('platformLabel')"></label>
+                        <select id="schedPlatformAlpine" x-model="forms.scheduleLive.platform" required class="w-full input-field">
+                            <option value="YouTube">YouTube</option>
+                            <option value="Facebook">Facebook</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-text-secondary mb-1" x-text="t('scheduleTypeLabel')"></label>
+                        <div class="flex space-x-4">
+                            <label class="flex items-center">
+                                <input type="radio" name="scheduleTypeAlpine" value="one_time" x-model="forms.scheduleLive.recurrenceType" class="form-radio text-primary focus:ring-primary">
+                                <span class="ml-2 text-text-primary" x-text="t('oneTimeLabel')"></span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="scheduleTypeAlpine" value="daily" x-model="forms.scheduleLive.recurrenceType" class="form-radio text-primary focus:ring-primary">
+                                <span class="ml-2 text-text-primary" x-text="t('dailyLabel')"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div x-show="forms.scheduleLive.recurrenceType === 'one_time'" class="space-y-4">
+                        <div>
+                            <label for="schedStartTimeAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('startDateTimeLabel')"></label>
+                            <input type="datetime-local" id="schedStartTimeAlpine" x-model="forms.scheduleLive.onetime.startTime" class="w-full input-field">
+                        </div>
+                        <div>
+                            <label for="schedDurationAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('durationHoursLabel')"></label>
+                            <input type="number" id="schedDurationAlpine" x-model.number="forms.scheduleLive.onetime.durationHours" min="0" step="0.1" class="w-full input-field">
+                        </div>
+                    </div>
+                    <div x-show="forms.scheduleLive.recurrenceType === 'daily'" class="space-y-4">
+                        <div>
+                            <label for="schedDailyStartTimeAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('dailyStartTimeLabel')"></label>
+                            <input type="time" id="schedDailyStartTimeAlpine" x-model="forms.scheduleLive.daily.startTimeOfDay" class="w-full input-field">
+                        </div>
+                        <div>
+                            <label for="schedDailyStopTimeAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('dailyStopTimeLabel')"></label>
+                            <input type="time" id="schedDailyStopTimeAlpine" x-model="forms.scheduleLive.daily.stopTimeOfDay" class="w-full input-field">
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" @click="closeActiveModal()" class="btn btn-secondary-modal" x-text="t('cancelButton')"></button>
+                    <button type="submit" class="btn btn-primary-modal" x-text="t('scheduleLiveButton')"></button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div x-show="activeModal === 'editScheduleModal'" @keydown.escape.window="closeActiveModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" x-cloak>
+        <div @click.away="closeActiveModal()" class="modal-content bg-surface rounded-lg shadow-xl w-full max-w-lg p-6" x-transition>
+            <div class="flex justify-between items-start mb-6">
+                <div class="flex-grow mr-2">
+                    <div class="flex items-center">
+                        <h3 class="text-xl font-semibold text-primary flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-2 text-primary">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                            </svg>
+                            <span x-text="t('editScheduleButton')"></span>
+                        </h3>
+                        
+                        <div class="hidden sm:flex text-xs text-text-secondary items-center space-x-1 ml-auto">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 opacity-75">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span x-text="currentBrowserDateTimeDisplay"></span>
+                        </div>
+                    </div>
+
+                    <div class="sm:hidden text-xs text-text-secondary flex items-center space-x-1 mt-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 opacity-75">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                        <span x-text="currentBrowserDateTimeDisplay"></span>
+                    </div>
+                </div>
+
+                <button @click="closeActiveModal()" class="text-text-secondary hover:text-text-primary text-2xl leading-none self-start">&times;</button>
+            </div>
+            <form @submit.prevent="handleEditSchedule">
+                <input type="hidden" x-model="forms.editSchedule.id">
+                <p class="mb-4 text-sm text-text-secondary"><span x-text="t('sessionNameLabel')"></span>: <strong class="text-text-primary" x-text="forms.editSchedule.sessionNameDisplay"></strong> (<span x-text="t('readOnlyLabel')"></span>)</p>
+                <div class="grid grid-cols-1 gap-4">
+                    <div>
+                        <label for="editSchedStreamKeyAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('streamKeyLabel')"></label>
+                        <input type="text" id="editSchedStreamKeyAlpine" x-model="forms.editSchedule.streamKey" required class="w-full input-field">
+                    </div>
+                    <div>
+                        <label for="editSchedVideoFileAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('videoFileLabel')"></label>
+                        <select id="editSchedVideoFileAlpine" x-model="forms.editSchedule.videoFile" required class="w-full input-field">
+                            <option value="" disabled x-text="t('selectVideoPlaceholder')"></option>
+                            <template x-for="video in videos" :key="video.id">
+                                <option :value="video.id" x-text="video.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="editSchedPlatformAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('platformLabel')"></label>
+                        <select id="editSchedPlatformAlpine" x-model="forms.editSchedule.platform" required class="w-full input-field">
+                            <option value="YouTube">YouTube</option>
+                            <option value="Facebook">Facebook</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-text-secondary mb-1" x-text="t('scheduleTypeLabel')"></label>
+                        <div class="flex space-x-4">
+                            <label class="flex items-center">
+                                <input type="radio" name="editScheduleTypeAlpine" value="one_time" x-model="forms.editSchedule.recurrenceType" class="form-radio text-primary focus:ring-primary">
+                                <span class="ml-2 text-text-primary" x-text="t('oneTimeLabel')"></span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="editScheduleTypeAlpine" value="daily" x-model="forms.editSchedule.recurrenceType" class="form-radio text-primary focus:ring-primary">
+                                <span class="ml-2 text-text-primary" x-text="t('dailyLabel')"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div x-show="forms.editSchedule.recurrenceType === 'one_time'" class="space-y-4">
+                        <div>
+                            <label for="editSchedStartTimeAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('startDateTimeLabel')"></label>
+                            <input type="datetime-local" id="editSchedStartTimeAlpine" x-model="forms.editSchedule.onetime.startTime" class="w-full input-field">
+                        </div>
+                        <div>
+                            <label for="editSchedDurationAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('durationHoursLabelOneTime')"></label>
+                            <input type="number" id="editSchedDurationAlpine" x-model.number="forms.editSchedule.onetime.durationHours" min="0" step="0.1" class="w-full input-field" :placeholder="t('durationPlaceholder')">
+                        </div>
+                    </div>
+                    <div x-show="forms.editSchedule.recurrenceType === 'daily'" class="space-y-4">
+                        <div>
+                            <label for="editSchedDailyStartTimeAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('dailyStartTimeLabel')"></label>
+                            <input type="time" id="editSchedDailyStartTimeAlpine" x-model="forms.editSchedule.daily.startTimeOfDay" class="w-full input-field">
+                        </div>
+                        <div>
+                            <label for="editSchedDailyStopTimeAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('dailyStopTimeLabel')"></label>
+                            <input type="time" id="editSchedDailyStopTimeAlpine" x-model="forms.editSchedule.daily.stopTimeOfDay" class="w-full input-field">
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" @click="closeActiveModal()" class="btn btn-secondary-modal" x-text="t('cancelButton')"></button>
+                    <button type="submit" class="btn btn-primary-modal" x-text="t('saveScheduleButton')"></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div x-show="activeModal === 'editRescheduleModal'" @keydown.escape.window="closeActiveModal()" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" x-cloak>
+        <div @click.away="closeActiveModal()" class="modal-content bg-surface rounded-lg shadow-xl w-full max-w-lg p-6" x-transition>
+            <div class="flex justify-between items-start mb-6"> <div class="flex-grow mr-2"> <div class="flex items-center">
+                        <h3 class="text-xl font-semibold text-primary flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 mr-2 text-primary">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5M12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008ZM9.75 15h.008v.008H9.75V15Zm0 2.25h.008v.008H9.75v-.008ZM7.5 15h.008v.008H7.5V15Zm0 2.25h.008v.008H7.5v-.008Zm6.75-4.5h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V15Zm0 2.25h.008v.008h-.008v-.008Zm2.25-4.5h.008v.008H16.5v-.008Zm0 2.25h.008v.008H16.5V15Z" />
+                            </svg>
+                            <span x-text="t('modalScheduleNewLiveTitle')"></span>
+                        </h3>
+                        
+                        <div class="hidden sm:flex text-xs text-text-secondary items-center space-x-1 ml-auto"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 opacity-75">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span x-text="currentBrowserDateTimeDisplay"></span>
+                        </div>
+                    </div>
+
+                    <div class="sm:hidden text-xs text-text-secondary flex items-center space-x-1 mt-1"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 opacity-75">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                        <span x-text="currentBrowserDateTimeDisplay"></span>
+                    </div>
+                </div>
+
+                <button @click="closeActiveModal()" class="text-text-secondary hover:text-text-primary text-2xl leading-none self-start">&times;</button>
+            </div>
+            <form @submit.prevent="handleEditReschedule">
+                <input type="hidden" x-model="forms.editReschedule.id">
+                <p class="mb-4 text-sm text-text-secondary"><span x-text="t('sessionNameLabel')"></span>: <strong class="text-text-primary" x-text="forms.editReschedule.sessionNameDisplay"></strong> (<span x-text="t('readOnlyLabel')"></span>)</p>
+                <div class="grid grid-cols-1 gap-4">
+                    <div>
+                        <label for="editStreamKeyAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('streamKeyLabel')"></label>
+                        <input type="text" id="editStreamKeyAlpine" x-model="forms.editReschedule.streamKey" required class="w-full input-field">
+                    </div>
+                    <div>
+                        <label for="editVideoFileAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('videoFileLabel')"></label>
+                        <select id="editVideoFileAlpine" x-model="forms.editReschedule.videoFile" required class="w-full input-field">
+                             <option value="" disabled x-text="t('selectVideoPlaceholder')"></option>
+                            <template x-for="video in videos" :key="video.id">
+                                <option :value="video.id" x-text="video.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="editPlatformAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('platformLabel')"></label>
+                        <select id="editPlatformAlpine" x-model="forms.editReschedule.platform" required class="w-full input-field">
+                            <option value="YouTube">YouTube</option>
+                            <option value="Facebook">Facebook</option>
+                        </select>
+                    </div>
+                    <hr class="my-2 border-muted">
+                    <h4 class="text-md font-semibold text-text-primary" x-text="t('reschedulingOptionsLabel')"></h4>
+                    <p class="text-xs text-text-secondary mb-2" x-text="t('reschedulingInstruction')"></p>
+                    <div>
+                        <label class="block text-sm font-medium text-text-secondary mb-1" x-text="t('scheduleTypeLabel')"></label>
+                         <div class="flex space-x-4">
+                            <label class="flex items-center">
+                                <input type="radio" name="editRecurrenceTypeAlpine" value="one_time" x-model="forms.editReschedule.recurrenceType" class="form-radio text-primary focus:ring-primary">
+                                <span class="ml-2 text-text-primary" x-text="t('oneTimeLabel')"></span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="editRecurrenceTypeAlpine" value="daily" x-model="forms.editReschedule.recurrenceType" class="form-radio text-primary focus:ring-primary">
+                                <span class="ml-2 text-text-primary" x-text="t('dailyLabel')"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div x-show="forms.editReschedule.recurrenceType === 'one_time'" class="space-y-4">
+                        <div>
+                            <label for="editSchedStartTimeAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('startDateTimeLabel')"></label>
+                            <input type="datetime-local" id="editSchedStartTimeAlpine" x-model="forms.editReschedule.onetime.startTime" class="w-full input-field">
+                        </div>
+                        <div>
+                            <label for="editSchedDurationAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('durationHoursLabelOneTime')"></label>
+                            <input type="number" id="editSchedDurationAlpine" x-model.number="forms.editReschedule.onetime.durationHours" min="0" step="0.1" class="w-full input-field" :placeholder="t('durationPlaceholder')">
+                        </div>
+                    </div>
+                    <div x-show="forms.editReschedule.recurrenceType === 'daily'" class="space-y-4">
+                        <div>
+                            <label for="editSchedDailyStartTimeAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('dailyStartTimeLabel')"></label>
+                            <input type="time" id="editSchedDailyStartTimeAlpine" x-model="forms.editReschedule.daily.startTimeOfDay" class="w-full input-field">
+                        </div>
+                        <div>
+                            <label for="editSchedDailyStopTimeAlpine" class="block text-sm font-medium text-text-secondary mb-1" x-text="t('dailyStopTimeLabel')"></label>
+                            <input type="time" id="editSchedDailyStopTimeAlpine" x-model="forms.editReschedule.daily.stopTimeOfDay" class="w-full input-field">
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" @click="closeActiveModal()" class="btn btn-secondary-modal" x-text="t('cancelButton')"></button>
+                    <button type="submit" class="btn btn-primary-modal" x-text="t('saveRescheduleButton')"></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <div x-show="toast.show" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-y-2" x-transition:enter-end="opacity-100 transform translate-y-0" x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100 transform translate-y-0" x-transition:leave-end="opacity-0 transform translate-y-2"
+         class="fixed bottom-5 right-5 p-4 rounded-md shadow-lg text-white text-sm z-[60]"
+         :class="{ 'bg-success': toast.type === 'success', 'bg-danger': toast.type === 'error', 'bg-warning text-black': toast.type === 'warning', 'bg-blue-500': toast.type === 'info' }"
+         x-text="toast.message" x-cloak>
+    </div>
+
+    <div x-show="confirmation.show" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" x-cloak>
+        <div @click.away="confirmation.show = false; if(confirmation.onCancel) confirmation.onCancel();" class="bg-surface rounded-lg shadow-xl w-full max-w-md p-6">
+            <h3 class="text-lg font-medium text-text-primary mb-2" x-text="confirmation.title || t('confirmActionTitle')"></h3>
+            <p class="text-sm text-text-secondary mb-6" x-text="confirmation.message"></p>
+            <div class="flex justify-end space-x-3">
+                <button @click="confirmation.show = false; if(confirmation.onCancel) confirmation.onCancel();" class="btn btn-secondary-modal" x-text="t('cancelButton')"></button>
+                <button @click="confirmation.show = false; if(confirmation.onConfirm) confirmation.onConfirm();"
+                        class="btn px-4 py-2 text-sm font-medium rounded-md transition-colors"
+                        :class="confirmation.confirmButtonClass || 'bg-danger hover:bg-red-600 text-white'">
+                    <span x-text="confirmation.confirmButtonText || t('confirmButton')"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

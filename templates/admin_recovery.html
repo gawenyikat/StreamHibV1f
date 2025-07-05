@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StreamHib V2 - Recovery Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-purple-600 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <a href="/admin" class="hover:bg-purple-700 px-3 py-2 rounded transition-colors">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Admin
+                </a>
+                <h1 class="text-xl font-bold">Recovery Management</h1>
+            </div>
+            <a href="/admin/logout" class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded transition-colors">
+                <i class="fas fa-sign-out-alt mr-2"></i>Logout
+            </a>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <!-- Recovery Actions -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">
+                <i class="fas fa-sync mr-2 text-blue-500"></i>Recovery Actions
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button onclick="triggerRecovery()" class="bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-lg transition-colors">
+                    <i class="fas fa-sync mr-2"></i>Manual Recovery
+                    <p class="text-sm mt-1">Recover orphaned sessions</p>
+                </button>
+                
+                <button onclick="cleanupServices()" class="bg-orange-500 hover:bg-orange-600 text-white p-4 rounded-lg transition-colors">
+                    <i class="fas fa-broom mr-2"></i>Cleanup Services
+                    <p class="text-sm mt-1">Remove unused systemd services</p>
+                </button>
+            </div>
+        </div>
+
+        <!-- Recovery Information -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">
+                <i class="fas fa-info-circle mr-2 text-green-500"></i>How Recovery Works
+            </h2>
+            
+            <div class="space-y-4">
+                <div class="border-l-4 border-blue-500 pl-4">
+                    <h3 class="font-semibold text-gray-800">Automatic Recovery</h3>
+                    <p class="text-gray-600">Runs every 5 minutes to detect and recover orphaned sessions.</p>
+                </div>
+                
+                <div class="border-l-4 border-green-500 pl-4">
+                    <h3 class="font-semibold text-gray-800">Orphaned Session Detection</h3>
+                    <p class="text-gray-600">Sessions in active_sessions but systemd service is not running.</p>
+                </div>
+                
+                <div class="border-l-4 border-yellow-500 pl-4">
+                    <h3 class="font-semibold text-gray-800">Recovery Process</h3>
+                    <ul class="text-gray-600 list-disc list-inside">
+                        <li>Check if video file exists</li>
+                        <li>Recreate systemd service</li>
+                        <li>Start streaming service</li>
+                        <li>Update session status</li>
+                    </ul>
+                </div>
+                
+                <div class="border-l-4 border-red-500 pl-4">
+                    <h3 class="font-semibold text-gray-800">Failed Recovery</h3>
+                    <p class="text-gray-600">Sessions that cannot be recovered are moved to inactive_sessions.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recovery Logs -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">
+                <i class="fas fa-file-alt mr-2 text-purple-500"></i>Recovery Commands
+            </h2>
+            
+            <div class="space-y-4">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="font-semibold text-gray-800 mb-2">View Recovery Logs</h3>
+                    <code class="bg-gray-800 text-green-400 p-2 rounded block">
+                        journalctl -u StreamHibV2.service -f | grep RECOVERY
+                    </code>
+                </div>
+                
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="font-semibold text-gray-800 mb-2">View All Logs</h3>
+                    <code class="bg-gray-800 text-green-400 p-2 rounded block">
+                        journalctl -u StreamHibV2.service -f
+                    </code>
+                </div>
+                
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <h3 class="font-semibold text-gray-800 mb-2">Check Active Services</h3>
+                    <code class="bg-gray-800 text-green-400 p-2 rounded block">
+                        systemctl list-units --type=service | grep stream-
+                    </code>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function triggerRecovery() {
+            if (!confirm('Trigger manual recovery? This will attempt to recover orphaned sessions.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/recovery/manual', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`Recovery completed!\n\nRecovered: ${result.recovery_result.recovered}\nMoved to inactive: ${result.recovery_result.moved_to_inactive}\nCleaned services: ${result.cleanup_count}\nTotal active: ${result.recovery_result.total_active}`);
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (error) {
+                alert('Recovery error: ' + error.message);
+            }
+        }
+        
+        async function cleanupServices() {
+            if (!confirm('Cleanup unused systemd services? This will remove services not in active sessions.')) {
+                return;
+            }
+            
+            alert('Cleanup functionality will be implemented in the next update.');
+        }
+    </script>
+</body>
+</html>

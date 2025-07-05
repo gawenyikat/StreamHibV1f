@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StreamHib V2 - Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-purple-600 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <i class="fas fa-cog text-2xl"></i>
+                <h1 class="text-xl font-bold">StreamHib V2 - Admin Panel</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <a href="/admin/domain" class="hover:bg-purple-700 px-3 py-2 rounded transition-colors">
+                    <i class="fas fa-globe mr-2"></i>Domain
+                </a>
+                <a href="/admin/users" class="hover:bg-purple-700 px-3 py-2 rounded transition-colors">
+                    <i class="fas fa-users mr-2"></i>Users
+                </a>
+                <a href="/admin/recovery" class="hover:bg-purple-700 px-3 py-2 rounded transition-colors">
+                    <i class="fas fa-sync mr-2"></i>Recovery
+                </a>
+                <a href="/admin/logout" class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded transition-colors">
+                    <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-blue-100 text-blue-500">
+                        <i class="fas fa-users text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-600">Total Users</p>
+                        <p class="text-2xl font-bold">{{ stats.total_users }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-green-100 text-green-500">
+                        <i class="fas fa-play-circle text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-600">Active Sessions</p>
+                        <p class="text-2xl font-bold">{{ stats.active_sessions }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-gray-100 text-gray-500">
+                        <i class="fas fa-stop-circle text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-600">Inactive Sessions</p>
+                        <p class="text-2xl font-bold">{{ stats.inactive_sessions }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-yellow-100 text-yellow-500">
+                        <i class="fas fa-clock text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-600">Scheduled</p>
+                        <p class="text-2xl font-bold">{{ stats.scheduled_sessions }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-purple-100 text-purple-500">
+                        <i class="fas fa-video text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-600">Total Videos</p>
+                        <p class="text-2xl font-bold">{{ stats.total_videos }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Domain Status -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">
+                <i class="fas fa-globe mr-2 text-blue-500"></i>Domain Configuration
+            </h2>
+            
+            {% if domain_config.domain_name %}
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-semibold text-green-800">{{ domain_config.domain_name }}</h3>
+                            <p class="text-green-600">
+                                SSL: {{ 'Enabled' if domain_config.ssl_enabled else 'Disabled' }} |
+                                Port: {{ domain_config.port }}
+                            </p>
+                        </div>
+                        <a href="/admin/domain" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            <i class="fas fa-edit mr-2"></i>Manage
+                        </a>
+                    </div>
+                </div>
+            {% else %}
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-semibold text-yellow-800">No Domain Configured</h3>
+                            <p class="text-yellow-600">Setup a custom domain for professional access</p>
+                        </div>
+                        <a href="/admin/domain" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            <i class="fas fa-plus mr-2"></i>Setup Domain
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">
+                <i class="fas fa-bolt mr-2 text-yellow-500"></i>Quick Actions
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button onclick="triggerRecovery()" class="bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-lg transition-colors">
+                    <i class="fas fa-sync mr-2"></i>Manual Recovery
+                </button>
+                
+                <a href="/admin/users" class="bg-green-500 hover:bg-green-600 text-white p-4 rounded-lg transition-colors text-center">
+                    <i class="fas fa-users mr-2"></i>Manage Users
+                </a>
+                
+                <a href="/" target="_blank" class="bg-purple-500 hover:bg-purple-600 text-white p-4 rounded-lg transition-colors text-center">
+                    <i class="fas fa-external-link-alt mr-2"></i>Customer View
+                </a>
+            </div>
+        </div>
+
+        <!-- Active Sessions Management -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">
+                <i class="fas fa-broadcast-tower mr-2 text-red-500"></i>Active Sessions Management
+            </h2>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full table-auto">
+                    <thead>
+                        <tr class="bg-gray-50">
+                            <th class="px-4 py-2 text-left">Session ID</th>
+                            <th class="px-4 py-2 text-left">User</th>
+                            <th class="px-4 py-2 text-left">Video File</th>
+                            <th class="px-4 py-2 text-left">Started</th>
+                            <th class="px-4 py-2 text-left">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if sessions.active_sessions %}
+                            {% for session_id, session_info in sessions.active_sessions.items() %}
+                            <tr class="border-b">
+                                <td class="px-4 py-2 font-mono text-sm">{{ session_id[:20] }}...</td>
+                                <td class="px-4 py-2">{{ session_info.username }}</td>
+                                <td class="px-4 py-2">{{ session_info.video_file }}</td>
+                                <td class="px-4 py-2">{{ session_info.started_at }}</td>
+                                <td class="px-4 py-2">
+                                    <button onclick="stopSessionAdmin('{{ session_id }}')" 
+                                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm transition-colors">
+                                        <i class="fas fa-stop mr-1"></i>Stop
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="px-4 py-8 text-center text-gray-500">No active sessions</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function triggerRecovery() {
+            if (!confirm('Trigger manual recovery? This will attempt to recover orphaned sessions.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/recovery/manual', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`Recovery completed!\nRecovered: ${result.recovery_result.recovered}\nMoved to inactive: ${result.recovery_result.moved_to_inactive}\nCleaned services: ${result.cleanup_count}`);
+                    location.reload();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (error) {
+                alert('Recovery error: ' + error.message);
+            }
+        }
+        
+        async function stopSessionAdmin(sessionId) {
+            if (!confirm('Stop this session?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/sessions/stop/${sessionId}`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Session stopped successfully!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (error) {
+                alert('Error stopping session: ' + error.message);
+            }
+        }
+        
+        // Auto refresh every 30 seconds
+        setInterval(() => {
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>
