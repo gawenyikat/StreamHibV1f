@@ -191,8 +191,8 @@
         
         // Test SSH connection
         async function testConnection() {
-            const ip = document.getElementById('oldServerIP').value;
-            const username = document.getElementById('username').value;
+            const ip = document.getElementById('oldServerIP').value.trim();
+            const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
             
             if (!ip || !username || !password) {
@@ -201,15 +201,29 @@
             }
             
             const testBtn = document.getElementById('testBtn');
+            const originalText = testBtn.innerHTML;
             testBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Testing...';
             testBtn.disabled = true;
             
             try {
                 const response = await fetch('/api/migration/test-connection', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
                     body: JSON.stringify({ ip, username, password })
                 });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    throw new Error(`Expected JSON response but got: ${contentType}`);
+                }
                 
                 const result = await response.json();
                 
@@ -221,11 +235,23 @@
                     testBtn.innerHTML = '<i class="fas fa-times mr-2"></i>Connection Failed';
                     testBtn.className = 'bg-red-500 text-white px-6 py-3 rounded-lg';
                     alert('Connection failed: ' + result.message);
+                    document.getElementById('startMigrationBtn').disabled = true;
                 }
             } catch (error) {
+                console.error('Test connection error:', error);
                 testBtn.innerHTML = '<i class="fas fa-times mr-2"></i>Error';
                 testBtn.className = 'bg-red-500 text-white px-6 py-3 rounded-lg';
                 alert('Test error: ' + error.message);
+                document.getElementById('startMigrationBtn').disabled = true;
+            } finally {
+                // Reset button after 3 seconds if not successful
+                if (!testBtn.innerHTML.includes('Connection OK')) {
+                    setTimeout(() => {
+                        testBtn.innerHTML = originalText;
+                        testBtn.className = 'bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-lg transition-colors';
+                        testBtn.disabled = false;
+                    }, 3000);
+                }
             }
         }
         
@@ -238,14 +264,20 @@
                 return;
             }
             
-            const ip = document.getElementById('oldServerIP').value;
-            const username = document.getElementById('username').value;
+            const ip = document.getElementById('oldServerIP').value.trim();
+            const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
+            
+            if (!ip || !username || !password) {
+                alert('Please fill all connection details');
+                return;
+            }
             
             migrationInProgress = true;
             document.getElementById('migrationStatus').style.display = 'block';
             document.getElementById('logSection').style.display = 'block';
             document.getElementById('startMigrationBtn').disabled = true;
+            document.getElementById('errorSection').style.display = 'none';
             
             // Initialize socket if not already done
             if (!socket) {
@@ -255,9 +287,22 @@
             try {
                 const response = await fetch('/api/migration/start', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
                     body: JSON.stringify({ ip, username, password })
                 });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    throw new Error(`Expected JSON response but got: ${contentType}. Response: ${text.substring(0, 200)}...`);
+                }
                 
                 const result = await response.json();
                 
@@ -265,6 +310,7 @@
                     handleMigrationError({ message: result.message });
                 }
             } catch (error) {
+                console.error('Migration start error:', error);
                 handleMigrationError({ message: error.message });
             }
         });
@@ -356,13 +402,22 @@
         // Start recovery
         async function startRecovery() {
             const recoveryBtn = document.getElementById('recoveryBtn');
+            const originalText = recoveryBtn.innerHTML;
             recoveryBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Starting Recovery...';
             recoveryBtn.disabled = true;
             
             try {
                 const response = await fetch('/api/migration/recovery', {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
                 });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
                 
                 const result = await response.json();
                 
@@ -380,10 +435,11 @@
                     alert('Recovery failed: ' + result.message);
                 }
             } catch (error) {
+                console.error('Recovery error:', error);
                 addLogEntry('Recovery error: ' + error.message, 'error');
                 alert('Recovery error: ' + error.message);
             } finally {
-                recoveryBtn.innerHTML = '<i class="fas fa-play mr-2"></i>Start Session Recovery';
+                recoveryBtn.innerHTML = originalText;
                 recoveryBtn.disabled = false;
             }
         }
@@ -422,8 +478,16 @@
             
             try {
                 const response = await fetch('/api/migration/rollback', {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
                 });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
                 
                 const result = await response.json();
                 
@@ -434,6 +498,7 @@
                     alert('Rollback failed: ' + result.message);
                 }
             } catch (error) {
+                console.error('Rollback error:', error);
                 alert('Rollback error: ' + error.message);
             }
         }
